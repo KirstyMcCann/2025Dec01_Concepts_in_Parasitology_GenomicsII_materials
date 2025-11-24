@@ -28,10 +28,10 @@ To investigate, all cases were genotyped using a global **180-SNP barcode**, pro
 ## How to use this workshop?
 
 **1. Clone this repository**
-    - Open Terminal (Mac/Linux) or PowerShell (Windows), then run:
-    - git clone https://github.com/KirstyMcCann/2025Dec01_Concepts_in_Parasitology_GenomicsII_materials.git
-    - Then move into the project folder: 
-    - cd 2025Dec01_Concepts_in_Parasitology_GenomicsII_materials
+- Open Terminal (Mac/Linux) or PowerShell (Windows), then run:
+- git clone https://github.com/KirstyMcCann/2025Dec01_Concepts_in_Parasitology_GenomicsII_materials.git
+- Then move into the project folder:
+- cd 2025Dec01_Concepts_in_Parasitology_GenomicsII_materials
 
 OR
 
@@ -44,9 +44,9 @@ OR
 
 
 **2. Install Required Software**
-    - You will need at least:
-    -   R (≥4.2)
-    -   Download from: https://cran.r-project.org/
+- You will need at least:
+- R (≥4.2)
+- Download from: https://cran.r-project.org/
 
 **3. Install Required R Packages**
 
@@ -71,10 +71,8 @@ Required input files are availble in:
 
 Specifically:
 
-- metadata_samples_extended.txt
-
+- metadata_samples.txt
 - SEA_180snp_DR.vcf
-
 - AFR_180snp_DR.vcf
 
 (You can find them in the workshop repo or download from Workshop Drive)
