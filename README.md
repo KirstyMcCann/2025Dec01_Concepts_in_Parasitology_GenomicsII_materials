@@ -29,7 +29,7 @@ To investigate, all cases were genotyped using a global **180-SNP barcode**, pro
 
 **1. Clone this repository**
     - Open Terminal (Mac/Linux) or PowerShell (Windows), then run:
-    - git clone https://github.com/KirstyMcCann/2025Dec01_Concepts_in_Parasitology_GenomicsII_materials/.git
+    - git clone https://github.com/KirstyMcCann/2025Dec01_Concepts_in_Parasitology_GenomicsII_materials.git
     - Then move into the project folder: 
     - cd 2025Dec01_Concepts_in_Parasitology_GenomicsII_materials
 
