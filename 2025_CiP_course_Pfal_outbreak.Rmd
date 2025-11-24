@@ -1,0 +1,635 @@
+---
+title: "Population Genomics Workshop: Identification of Imported Cases"
+author: "Kirsty McCann"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+## DISCLAIMER
+
+The following tutorial is simulated for workshops purposes.
+
+This workshop should only be used for training purposes.
+
+## The Scenario
+
+In early 2025, an unexpected cluster of approximately 200 Plasmodium falciparum malaria cases was reported in a district of Namibia, Africa that had previously achieved malaria-free status in 2019. This district is a popular tourism destination, attracting visitors from across the world, making imported infections a key concern for surveillance teams.
+
+Although local transmission in Namibia had been largely interrupted, bordering countries particularly Angola continue to experience substantial malaria transmission, including recent surges in case numbers. Because of the region’s interconnected human movement and historical importation events, rapid genomic investigation was initiated to determine whether this new outbreak represented:
+
+A resurgence of local parasite circulation,
+
+Ongoing regional transmission from neighbouring endemic countries, or
+
+An imported outbreak from outside Africa.
+
+To investigate, all cases were genotyped using a global 180-SNP barcode, providing a compact yet highly informative set of markers for population structure, relatedness, and transmission inference.
+
+### Can you you identify where in the world the outbreak has originated?
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## 1. Install and Load Packages and Data
+
+To install the following packages on your computer you will need to use: install.packages() or if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install()
+
+Note: The #'s throughout the file are comments, if you remove the # from the line in the code chunk you can run that line.
+
+```{r load-packages}
+#(!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+#BiocManager::install()
+
+#install.packages("vcfR")
+library(vcfR)
+library(adegenet)
+library(poppr)
+library(ape)
+library(pegas)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(ggtree)
+library(viridis)
+library(dartR.base)
+library(hierfstat)
+library(tidyr)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(scales)
+library(purrr)
+
+# Extended metadata with sites, coordinates, and DR mutations
+meta <- read.table("data/metadata_samples.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+
+# load the African data and the Southeast Asia data. You will need both of these to find where the imported cases are.
+AFR <- read.vcfR("data/AFR_180snp_DR.vcf")
+SEA <- read.vcfR("data/SEA_180snp_DR.vcf")
+
+AFR
+SEA
+```
+
+## 2. Filter the Dataset and Calculate Missingness
+
+### Exercises for Section 2. Filter the Dataset and Calculate Missingness
+- Which plots are most informative?
+- Why should filter the data?
+- Are these mostly complete datasets or are we missing important information?
+
+#### IMPORTANT
+You will need to run this section on both SEA and ARF datasets.
+You can duplicate the code chunk, or add additional lines in the chunk to define the other dataset.
+
+Note: if you use the same dataframe names, you will overwrite your dataframes.
+
+```{r filter-missingness}
+summary(SEA)
+
+gts_SEA <- extract.gt(SEA) # character matrix of genotypes (e.g., 0/0, 1/1, ./.)
+gts_AFR <- extract.gt(AFR) 
+
+# Missingness: treat "./." as missing
+miss_by_sample_SEA <- apply(is.na(gts_SEA) | gts_SEA == "./.", 2, mean)
+miss_by_variant_SEA <- apply(is.na(gts_SEA) | gts_SEA == "./.", 1, mean)
+miss_by_sample_AFR <- apply(is.na(gts_AFR) | gts_AFR == "./.", 2, mean)
+miss_by_variant_AFR <- apply(is.na(gts_AFR) | gts_AFR == "./.", 1, mean)
+
+df_miss_sample_SEA <- data.frame(Sample = names(miss_by_sample_SEA), MissingRate = miss_by_sample_SEA)
+plot_miss_sample_SEA <- ggplot(df_miss_sample_SEA, aes(x = reorder(Sample, MissingRate), y = MissingRate)) +
+  geom_bar(stat = "identity", fill = "darkred") +
+  coord_flip() + theme_minimal() +
+  labs(title = "Missingness per Sample", y = "Proportion Missing", x = "Sample")
+
+df_miss_variant_SEA <- data.frame(SNP = 1:length(miss_by_variant_SEA), MissingRate = miss_by_variant_SEA)
+plot_miss_variant_SEA <- ggplot(df_miss_variant_SEA, aes(x = SNP, y = MissingRate)) +
+  geom_point(color = "steelblue") +
+  theme_minimal() +
+  labs(title = "Missingness per SNP", y = "Proportion Missing", x = "SNP Index")
+
+snp_samp_missing_plot <- ggplot() +
+  geom_histogram(data=df_miss_sample_SEA, aes(x=MissingRate), bins=10, fill="grey") + 
+  geom_segment(aes(x=0.3, y=0, xend=0.3, yend=Inf)) +
+  geom_rect(aes(xmin=-Inf, xmax=0.3, ymin=0, ymax=Inf), fill="blue", alpha=0.05) +
+  geom_rect(aes(xmin=0.3, xmax=Inf, ymin=0, ymax=Inf), fill="red", alpha=0.05) +
+  xlab("Missingness by sample") + ylab("Frequency") +
+  ggtitle("Missingness by Sample") + theme_bw() + 
+  theme(plot.title=element_text(hjust=0.5, face="bold"))
+print(snp_samp_missing_plot)
+
+snp_var_missing_plot <- ggplot() +
+  geom_histogram(data=df_miss_variant_SEA, aes(x=MissingRate), bins=12, fill="grey") + 
+  geom_segment(aes(x=0.1, y=0, xend=0.1, yend=Inf)) +
+  geom_rect(aes(xmin=-Inf, xmax=0.1, ymin=0, ymax=Inf), fill="blue", alpha=0.05) +
+  geom_rect(aes(xmin=0.1, xmax=Inf, ymin=0, ymax=Inf), fill="red", alpha=0.05) +
+  xlab("Missingness by Variant") + ylab("Frequency") +
+  ggtitle("Missingness by Variant") + theme_bw() + 
+  theme(plot.title=element_text(hjust=0.5, face="bold"))
+print(snp_var_missing_plot)
+
+```
+
+
+```{r filter-missing}
+# Simple variant filter: remove SNPs with >20% missing
+vcf_filt_SEA <- SEA[miss_by_variant_SEA < 0.2, ]
+vcf_filt_AFR <- AFR[miss_by_variant_AFR < 0.2, ]
+
+vcf_filt_SEA
+vcf_filt_AFR
+
+```
+
+## 3. Convert to Genlight and Add Metadata
+
+```{r genlight-conversion}
+gl_SEA <- vcfR2genlight(vcf_filt_SEA)
+
+# Make sure the order of samples in meta matches genlight individuals
+meta_ord <- meta[match(indNames(gl_SEA), meta$sample), ]
+
+stopifnot(all(meta_ord$sample == indNames(gl_SEA)))
+
+# Assign populations by country
+pop(gl_SEA) <- meta_ord$country
+
+gl_SEA
+
+```
+
+## 4. PCoA / MDS Plot (Population Structure)
+
+### Exercises for Section 4. PCoA / MDS Plot (Population Structure)
+- What patterns do you observe in this section?
+- Which samples or populations stand out?
+- What does this tell you about the population structure?
+- Why do we use PCoA plots?
+
+Other tasks:
+- Use ggplot2 (https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
+- What happens if you change the data to sites?
+
+Ensure you generate PCoA for both SEA and ARF datasets!
+
+```{r pcoa}
+dist_mat_SEA <- dist(as.matrix(gl_SEA))
+pcoa_res <- cmdscale(dist_mat_SEA, k = 2)
+pcoa_df <- data.frame(pcoa_res, country = pop(gl_SEA))
+
+pcoa <- ggplot(pcoa_df, aes(X1, X2, color = country)) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  scale_color_viridis_d() +
+  labs(title = "PCoA of 180-SNP Genotypes", x = "Coordinate 1", y = "Coordinate 2")
+
+pcoa
+```
+
+## 5. Phylogenetic Tree (Neighbor-Joining)
+
+### Exercises for Section 5. Phylogenetic Tree (Neighbor-Joining)
+- What patterns do you observe in this section?
+- Which samples or populations stand out?
+- What does this tell you about the population structure?
+- Why do we use phylogentic trees plots?
+
+Other tasks:
+- Use ggplot2 (https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
+- What happens if you change the data to sites?
+
+Ensure you generate trees for both SEA and ARF datasets!
+
+
+```{r nj-tree}
+tree <- nj(dist_mat_SEA)
+
+tree_plot_SEA <- tree_plot <- ggtree(tree, layout = "fan") %<+% meta_ord +
+  geom_tippoint(aes(color = country), size = 2) +
+  scale_color_viridis_d() +
+  theme_tree2() +
+  labs(title = "Neighbor-Joining Tree of P. falciparum Samples")
+
+tree_plot_SEA
+```
+
+## 6. Population Genetic Statistics
+
+### Exercises for Section 6. Population Genetic Statistics
+- What information do we have?
+
+
+```{r pop-stats}
+# Ensure order of metadata matches gl_SEA
+meta_ord_SEA <- meta[match(indNames(gl_SEA), meta$sample), ]
+stopifnot(all(meta_ord_SEA$sample == indNames(gl_SEA)))
+
+# Convert to genind then extract allele matrix
+gi_SEA <- gl2gi(gl_SEA)
+
+# Convert allele counts to 0/1 presence matrix
+# 0 = REF, 1 = ALT
+tab_SEA <- gi_SEA@tab
+
+# malaria is haploid, but counts may be 0/1/2 in object
+tab_SEA[tab_SEA > 1] <- 1      # ensure values >1 become 1
+tab_SEA[is.na(tab_SEA)] <- 0   # optional but keeps dimension clean
+```
+
+```{r basic-div}
+
+# Basic diversity stats per population
+pop_stats <- poppr(gi_SEA)
+pop_stats
+
+# Pairwise Fst (Nei) between populations
+fst_sea <- pairwise.neifst(gi_SEA)
+```
+
+
+## 7. Nucleotide Diversity
+
+```{r nucleotide-div}
+calc_pi <- function(mat) {
+  p <- colMeans(mat, na.rm = TRUE)
+  q <- 1 - p
+  mean(2 * p * q, na.rm = TRUE)
+}
+
+pi_per_site <- meta_ord_SEA %>%
+  group_split(site) %>%
+  map_df(function(df_site) {
+    samples <- df_site$sample
+    mat <- tab_SEA[rownames(tab_SEA) %in% samples, , drop = FALSE]
+    tibble(
+      site = unique(df_site$site),
+      pi = calc_pi(mat)
+    )
+  })
+
+pi_per_site
+
+nuc_sea <- ggplot(pi_per_site,
+       aes(x = reorder(site, pi), y = pi, fill = site)) +
+  geom_col() +
+  theme_minimal() +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Nucleotide Diversity (π) per Site",
+    x = "Site",
+    y = "Nucleotide Diversity (π)"
+  )
+```
+
+## Activity. Merge the datasets together and plot the PCoA and phylogenetic trees
+
+- What do these plots tell us about imported cases?
+- Do you have an idea on where the parasites have come from?
+
+```{r merge_dataframes}
+
+stopifnot(all(vcf_filt_SEA@fix[, "ID"] == vcf_filt_AFR@fix[, "ID"]))
+
+vcf_filt_merged <- vcf_filt_SEA
+vcf_filt_merged@gt <- cbind(
+  vcf_filt_SEA@gt,
+  vcf_filt_AFR@gt[, -1, drop = FALSE]  # drop AFR "FORMAT" column
+)
+
+```
+
+```{r genlight-conversion_merged}
+gl_all <- vcfR2genlight(vcf_filt_merged)
+
+# Make sure the order of samples in meta matches genlight individuals
+meta_ord <- meta[match(indNames(gl_all), meta$sample), ]
+stopifnot(all(meta_ord$sample == indNames(gl_all)))
+
+# Assign populations by country
+pop(gl_all) <- meta_ord$country
+
+gl_all
+```
+
+```{r pcoa_merged}
+dist_mat_all <- dist(as.matrix(gl_all))
+pcoa_res <- cmdscale(dist_mat_all, k = 2)
+pcoa_df <- data.frame(pcoa_res, country = pop(gl_all))
+
+pcoa_all <- ggplot(pcoa_df, aes(X1, X2, color = country)) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  scale_color_viridis_d() +
+  labs(title = "PCoA of 180-SNP Genotypes", x = "Coordinate 1", y = "Coordinate 2")
+```
+
+```{r nj-tree}
+tree_all_site <- nj(dist_mat_all)
+
+tree_all <- ggtree(tree_all_site, layout = "fan") %<+% meta_ord +
+  geom_tippoint(aes(color = country), size = 2) +
+  scale_color_viridis_d() +
+  theme_tree2() +
+  labs(title = "Neighbor-Joining Tree of *P. falciparum* Samples")
+
+tree_plot
+```
+
+
+## 9. Mapping Sampling Locations
+
+### Exercises for Section 9. Mapping Sampling Locations
+- Plot where all the samples are collected from?
+- Can you change the shape of SEA samples vs AFR samples?
+
+```{r map-sampling}
+# Ensure country is a proper factor with no empty strings
+meta$country[meta$country == "" | is.na(meta$country)] <- "Unknown"
+
+# Remove any samples missing coordinates
+meta <- meta %>% filter(!is.na(latitude), !is.na(longitude))
+
+meta_sf <- st_as_sf(meta,
+                    coords = c("longitude", "latitude"),
+                    crs = 4326,
+                    remove = FALSE)   # keep original columns
+
+
+# Load world map
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+map <- ggplot() +
+  geom_sf(data = world, fill = "grey90", color = "grey60", linewidth = 0.2) +
+  geom_sf(data = meta_sf,
+          aes(color = country),
+          size = 2, alpha = 0.8) +
+  coord_sf(xlim = c(-20, 120), ylim = c(-25, 25), expand = FALSE) +
+  scale_color_viridis_d() +
+  theme_minimal() +
+  labs(title = "Sampling Locations of P. falciparum Isolates",
+       x = "Longitude", y = "Latitude")
+
+```
+
+## 10. Drug-Resistance Mutation Exploration
+
+###  Exercises for Section 10. Drug-Resistance Mutation Exploration
+- What does this plot tell us?
+- Do any of the samples have any other mutations? How can you tell?
+
+
+### 10.1. C580Y prevalence by country
+
+```{r dr-c580y-by-country}
+dr_c580 <- meta %>%
+  group_by(country, kelch13_C580Y) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(country) %>%
+  mutate(freq = n / sum(n))
+
+ggplot(dr_c580, aes(x = country, y = freq, fill = kelch13_C580Y)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("WT" = "grey80", "Y" = "firebrick")) +
+  theme_minimal() +
+  coord_flip() +
+  labs(title = "C580Y Prevalence by Country",
+       x = "Country", y = "Proportion",
+       fill = "kelch13 C580Y")
+```
+
+### 10.2. Drug resistance mutation heatmap by country
+
+```{r dr-heatmap}
+dr_cols <- c("kelch13_C580Y",
+             "crt_N75E","crt_K76T","crt_I356T",
+             "mdr1_N86Y","mdr1_Y184F",
+             "dhfr_N51I","dhfr_C59R","dhfr_S108N",
+             "dhps_A437G","dhps_K540E")
+
+dr_long <- meta %>%
+  select(country, all_of(dr_cols)) %>%
+  pivot_longer(cols = all_of(dr_cols), names_to = "marker", values_to = "aa") %>%
+  group_by(country, marker) %>%
+  summarise(prop_mut = mean(aa != "WT"), .groups = "drop")
+
+heatmap <- ggplot(dr_long, aes(x = marker, y = country, fill = prop_mut)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(labels = percent_format(accuracy = 1)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Proportion of Mutant DR Alleles by Country",
+       x = "Drug-Resistance Marker", y = "Country",
+       fill = "Mutant
+proportion")
+```
+
+### 10.3. Map coloured by C580Y status
+
+- What does this tell us about the imported cases?
+- You may need to change the size of the plot, points etc. to see the full picture.
+
+```{r dr-map-c580y}
+meta$C580Y_status <- ifelse(meta$kelch13_C580Y == "Y", "C580Y mutant", "WT")
+
+C580Yplot <- ggplot() +
+  geom_sf(data = world, fill = "grey95", color = "grey80") +
+  geom_point(data = meta,
+             aes(x = longitude, y = latitude, color = C580Y_status),
+             size = 2, alpha = 0.9) +
+  coord_sf(xlim = c(-20, 120), ylim = c(-25, 25), expand = FALSE) +
+  scale_color_manual(values = c("WT" = "grey40", "C580Y mutant" = "firebrick")) +
+  theme_minimal() +
+  labs(title = "Geographic Distribution of kelch13 C580Y",
+       x = "Longitude", y = "Latitude",
+       color = "C580Y status")
+```
+
+Can you find out information about any other important drug resistance genes?
+
+- Kelch13
+- mdr1
+- dhfr
+- dhps
+- crt
+
+
+
+## 11. Connectedness Maps (grcMalaria-style)
+
+### Exercises for 11. Connectedness Maps (based on grcMalaria - https://genremekong.org/tools/grcmalaria-guide)
+- What is this figure telling us?
+
+You may need to zoom into this figure to see the connections.
+
+Here we define a reusable function to map genetic connectedness between **sites or **countries** using the PCoA distance matrix.
+
+```{r map-connectedness-func}
+map_connectedness <- function(meta, dist_mat, group_var = c("site", "country"),
+                              measure = c("similarity", "meanDistance"),
+                              thresholds = c(0.9, 0.8, 0.7),
+                              min_pairs = 10,
+                              xlim = c(-20, 120),
+                              ylim = c(-25, 25)) {
+
+  group_var <- match.arg(group_var)
+  measure <- match.arg(measure)
+
+  # Ensure order matches distance matrix labels
+  samples <- labels(dist_mat)
+  meta_ord <- meta[match(samples, meta$sample), ]
+  stopifnot(all(meta_ord$sample == samples))
+
+  D <- as.matrix(dist_mat)
+  max_d <- max(D)
+  S <- 1 - D / max_d  # rescaled similarity 0–1
+
+  grp <- meta_ord[[group_var]]
+
+  # Coordinates per group (centroids)
+  centers <- meta_ord %>%
+    group_by(.data[[group_var]]) %>%
+    summarise(lon = mean(longitude),
+              lat = mean(latitude),
+              .groups = "drop")
+
+  grp_levels <- centers[[group_var]]
+
+  edges <- list()
+
+  for (i in seq_along(grp_levels)) {
+    for (j in seq_along(grp_levels)) {
+      if (j <= i) next
+      g1 <- grp_levels[i]
+      g2 <- grp_levels[j]
+
+      idx1 <- which(grp == g1)
+      idx2 <- which(grp == g2)
+      if (length(idx1) == 0 || length(idx2) == 0) next
+
+      # all pairwise combinations between groups
+      pairs <- expand.grid(i = idx1, j = idx2)
+      if (nrow(pairs) < min_pairs) next
+
+      d_vals <- D[cbind(pairs$i, pairs$j)]
+      s_vals <- S[cbind(pairs$i, pairs$j)]
+
+      for (thr in thresholds) {
+        if (measure == "similarity") {
+          prop <- mean(s_vals >= thr)
+        } else { # meanDistance-style: high similarity ~ low distance
+          # interpret threshold as similarity, convert to distance cutoff
+          d_cutoff <- (1 - thr) * max_d
+          prop <- mean(d_vals <= d_cutoff)
+        }
+        if (prop > 0) {
+          edges[[length(edges) + 1]] <- data.frame(
+            g1 = g1, g2 = g2,
+            lon1 = centers$lon[centers[[group_var]] == g1],
+            lat1 = centers$lat[centers[[group_var]] == g1],
+            lon2 = centers$lon[centers[[group_var]] == g2],
+            lat2 = centers$lat[centers[[group_var]] == g2],
+            prop = prop,
+            threshold = thr,
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+  }
+
+  if (length(edges) == 0) {
+    message("No edges above thresholds.")
+    return(NULL)
+  }
+
+  edges_df <- do.call(rbind, edges)
+  edges_df$threshold_lab <- paste0("Threshold = ", edges_df$threshold)
+
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+
+  p <- ggplot() +
+    geom_sf(data = world, fill = "grey95", color = "grey80") +
+    geom_segment(data = edges_df,
+                 aes(x = lon1, y = lat1,
+                     xend = lon2, yend = lat2,
+                     size = prop, color = prop),
+                 alpha = 0.8) +
+    geom_point(data = centers,
+               aes(x = lon, y = lat),
+               size = 2, color = "black") +
+   # geom_label(data = centers,
+  #             aes(x = lon, y = lat, label = .data[[group_var]]),
+  #             size = 3, label.size = 0.1, fill = "white", alpha = 0.8) +
+    coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+    scale_size_continuous(range = c(0.2, 2.5)) +
+    scale_color_viridis_c() +
+    facet_wrap(~ threshold_lab) +
+    theme_minimal() +
+    labs(title = paste("Genetic connectedness by", group_var),
+         x = "Longitude", y = "Latitude",
+         size = "Proportion
+highly similar pairs",
+         color = "Proportion
+highly similar pairs")
+
+  p
+}
+
+```
+
+### 11.1. Connectedness between sites
+
+```{r connectedness-site}
+# Use the same distance matrix from PCoA (dist_mat)
+p_site <- map_connectedness(meta, dist_mat_all,
+                            group_var = "site",
+                            measure = "similarity",
+                            thresholds = c(0.9, 0.8, 0.7),
+                            min_pairs = 10)
+p_site
+
+
+```
+
+
+## 12. Discriminant Analysis of Principal Components (DAPC)
+
+### Exercises for Section 12.
+- What patterns do you observe in this section?
+- Which samples or populations stand out?
+- What does this tell you about the outbreak or population structure?
+
+```{r dapc, eval=FALSE}
+# NOTE: find.clusters() is interactive; this chunk is set to eval=FALSE for knitting.
+# You can run it interactively in an R session.
+
+grp <- find.clusters(gl_all, max.n.clust = 10)  # interactive prompt for choosing K
+dapc_res <- dapc(gl_all, grp$grp)
+```
+
+
+```{r dapc, eval=FALSE}
+
+dapc <- dapc(gl_all, n.pca=30, n.da=4)
+
+scatter(dapc, scree.da=FALSE, scree.pca=FALSE,
+cell=1.5, cex=4, solid=0.8, bg="white",cstar=0, clab=0, leg=TRUE)
+
+# density plots
+scatter(dapc,1,1,  bg="white",
+scree.da=FALSE, legend=TRUE, solid=0.9)
+
+# membership probability
+compoplot(dapc, lab="", posi=list(x=100,y=-.03), cleg=.7)
+
+```
+
+
+## End of workshop
