@@ -81,3 +81,7 @@ Specifically:
 
 The workshop can be repeated and the slides presented during the workshop will be provided following the workshop and found here.
 
+## **Credits**
+
+Developed and maintained by Dr Kirsty McCann for teaching 2025 Concepts in Parasitology Course - Genomics II in R.
+
