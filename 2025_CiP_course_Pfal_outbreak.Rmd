@@ -39,19 +39,28 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 ## 1. Install and Load Packages and Data
 
-To install the following packages on your computer you will need to use: install.packages() or if (!require("BiocManager", quietly = TRUE))
+To install the following packages on your computer you will need to use: 
+
+```{r setup2, exec=false, eval=false}
+install.packages()
+```
+
+or
+
+```{r setup3, exec=false, eval=false}
+if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 BiocManager::install()
+```
 
-Note: The #'s throughout the file are comments, if you remove the # from the line in the code chunk you can run that line.
+**Note**: The #'s throughout the file are comments, if you remove the # from the line in the code chunk you can run that line.
 
-We can also use renv::restore()
+We can also use `renv::restore()`: 
 
 ```{r load-packages}
 #(!require("BiocManager", quietly = TRUE))
 #    install.packages("BiocManager")
 #BiocManager::install()
-
 
 (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
@@ -111,7 +120,7 @@ SEA
 
 ### Exercises for Section 2. Filter the Dataset and Calculate Missingness
 - Which plots are most informative?
-- Why should filter the data?
+- Why should you filter the data?
 - Are these mostly complete datasets or are we missing important information?
 
 #### IMPORTANT
@@ -203,7 +212,8 @@ gl_SEA
 - Why do we use PCoA plots?
 
 Other tasks:
-- Use ggplot2 (https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
+
+- Use [ggplot2](https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
 - What happens if you change the data to sites?
 
 Ensure you generate PCoA for both SEA and ARF datasets!
@@ -231,7 +241,8 @@ pcoa
 - Why do we use phylogentic trees plots?
 
 Other tasks:
-- Use ggplot2 (https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
+
+- Use [ggplot2](https://ggplot2.tidyverse.org/) to change colours or change the shapes of the countries.
 - What happens if you change the data to sites?
 
 Ensure you generate trees for both SEA and ARF datasets!
