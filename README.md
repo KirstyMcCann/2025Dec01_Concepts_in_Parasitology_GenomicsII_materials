@@ -1,5 +1,7 @@
 # 2025Dec01 Concepts in Parasitology Genomics II materials
 
+To access the slides that accompanies this workshop: [click here!](https://kirstymccann.github.io/ggplotly_workshop_website/)
+
 ## Contents
 - `metadata_samples.txt` - this file contains the name of the dataset samples and information recording the collection site, country and if there are any drug resistant mutations present.
 - `SEA_180snp_DR.vcf` - Southeast Asia dataset
