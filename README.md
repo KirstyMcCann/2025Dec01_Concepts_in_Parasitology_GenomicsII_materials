@@ -1,6 +1,6 @@
 # 2025Dec01 Concepts in Parasitology Genomics II materials
 
-To access the slides that accompanies this workshop: [click here!](https://kirstymccann.github.io/ggplotly_workshop_website/)
+To access the slides that accompanies this workshop: [click here!](https://kirstymccann.github.io/2025_CiP_pfal_outbreak_workshop/)
 
 ## Contents
 - `metadata_samples.txt` - this file contains the name of the dataset samples and information recording the collection site, country and if there are any drug resistant mutations present.
